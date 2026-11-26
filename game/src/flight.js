@@ -61,7 +61,7 @@ export function stepPlane(plane, ctl, world, dt) {
   const authority = plane.onGround ? 0.35 : clamp((plane.speed - 18) / 40, 0.12, 1);
   const pitchRate = ctl.pitch * 0.85 * authority;
   plane.pitch = clamp(plane.pitch + pitchRate * dt, -0.55, 0.55);
-  const rollRate = ctl.roll * 1.7 * authority;
+  const rollRate = ctl.roll * 2.2 * authority;
   // Roll sign: D (roll +1) banks right — the right wing drops and the
   // heading turns toward the plane's right (negative roll in this basis).
   plane.roll = clamp(plane.roll - rollRate * dt, -1.35, 1.35);
@@ -72,10 +72,11 @@ export function stepPlane(plane, ctl, world, dt) {
   // Banked turn: turn rate grows with bank and shrinks with speed — fast
   // planes turn wide, slow planes turn tight. This is the discipline the
   // game rewards: slow down before a tight ring, open the throttle after.
-  // TURN_FACTOR > 1 keeps the game arcade-responsive: even at cruise the
-  // plane can correct onto a ring line without a full lap.
+  // TURN_FACTOR > 2 keeps the game arcade-responsive: at approach speed
+  // (~50 m/s) the tightest turn is ~55 m, so a lined-up ring can be
+  // flown through instead of orbited around.
   if (!plane.onGround && plane.speed > 20) {
-    const turnRate = (FLIGHT.gravity * Math.tan(plane.roll)) / plane.speed * 1.5;
+    const turnRate = (FLIGHT.gravity * Math.tan(plane.roll)) / plane.speed * 2.4;
     plane.heading += turnRate * dt;
   }
 

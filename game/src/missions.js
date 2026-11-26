@@ -1,8 +1,11 @@
 // missions.js — the three sorties: what to fly, how it is scored.
 // Ring positions are fixed world coordinates over the islands, so every
 // attempt flies the same course (fair for the judge's replays).
+// Rings are generous (55 m): the plane's tightest turn is ~55 m at
+// approach speed, so a ring must be wide enough to fly through after
+// lining up — a 36 m ring was nearly impossible to hit.
 
-export const RING_RADIUS = 36;
+export const RING_RADIUS = 55;
 
 // Ring Run: 8 amber rings in a loop over the archipelago.
 export const RING_RUN_RINGS = [
@@ -16,13 +19,13 @@ export const RING_RUN_RINGS = [
   { x: 0, y: 90, z: 300, r: RING_RADIUS },   // over the runway, on final
 ];
 
-// Storm Run: 5 rings at night, lower and tighter.
+// Storm Run: 5 rings at night, lower and tighter (still generous).
 export const STORM_RINGS = [
-  { x: 0, y: 170, z: -300, r: 32 },
-  { x: 600, y: 130, z: -800, r: 32 },
-  { x: 1200, y: 150, z: -700, r: 32 },
-  { x: 700, y: 120, z: 150, r: 32 },
-  { x: -350, y: 110, z: 950, r: 32 },
+  { x: 0, y: 170, z: -300, r: 42 },
+  { x: 600, y: 130, z: -800, r: 42 },
+  { x: 1200, y: 150, z: -700, r: 42 },
+  { x: 700, y: 120, z: 150, r: 42 },
+  { x: -350, y: 110, z: 950, r: 42 },
 ];
 
 export const MISSIONS = [
@@ -43,7 +46,7 @@ export const MISSIONS = [
     name: 'ISLAND COURIER',
     short: 'Deliver cargo, land on the runway',
     brief: 'Fly to Pulau Api beacon, pick up the cargo, then land on runway 27. The landing is scored.',
-    rings: [{ x: 1450, y: 150, z: -750, r: 30 }],
+    rings: [{ x: 1450, y: 150, z: -750, r: 40 }],
     timeLimit: 360,
     needsLanding: true,
     sky: 'golden',
@@ -88,8 +91,10 @@ export function createMissionState(mission) {
 
 // Has the plane flown through the current ring this step? A ring is a
 // hoop: the plane's path segment must cross the ring's disc plane within
-// the ring radius. (Falling back to near-centre distance for a step that
-// starts inside the disc.)
+// the ring radius — or pass close by the ring in 3D (clipping the hoop's
+// edge still counts: a near miss at speed should not feel like a miss).
+// (Falling back to near-centre distance for a step that starts inside
+// the disc.)
 export function ringPassed(plane, ring, facing, prevPos) {
   if (!prevPos) return false;
   const fx = facing.x, fy = facing.y, fz = facing.z;
@@ -102,6 +107,17 @@ export function ringPassed(plane, ring, facing, prevPos) {
     const cz = prevPos.z + (plane.z - prevPos.z) * t;
     const radial = Math.hypot(cx - ring.x, cy - ring.y, cz - ring.z);
     if (radial < ring.r) return true;
+  }
+  // Closest approach of this step's path segment to the ring centre.
+  const sx = plane.x - prevPos.x, sy = plane.y - prevPos.y, sz = plane.z - prevPos.z;
+  const segLen2 = sx * sx + sy * sy + sz * sz;
+  if (segLen2 > 0) {
+    const tt = Math.max(0, Math.min(1,
+      ((ring.x - prevPos.x) * sx + (ring.y - prevPos.y) * sy + (ring.z - prevPos.z) * sz) / segLen2));
+    const qx = prevPos.x + sx * tt - ring.x;
+    const qy = prevPos.y + sy * tt - ring.y;
+    const qz = prevPos.z + sz * tt - ring.z;
+    if (Math.hypot(qx, qy, qz) < ring.r) return true;
   }
   const dx = plane.x - ring.x;
   const dy = plane.y - ring.y;

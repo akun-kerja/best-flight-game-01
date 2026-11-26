@@ -84,13 +84,14 @@ export function createWorld(seed) {
   const rng = makeRng(seed);
   const world = { seed, rng, grid: null, clouds: [], beacons: [] };
   world.grid = buildGrid(world, 80, WORLD_HALF);
-  // Clouds: seeded puffs drifting slowly over the sea.
-  for (let i = 0; i < 26; i++) {
+  // Clouds: seeded puffs drifting slowly over the sea — more of them,
+  // and bigger, so the sky has depth in the screenshots.
+  for (let i = 0; i < 38; i++) {
     world.clouds.push({
       x: (rng() * 2 - 1) * 2200,
       y: 200 + rng() * 160,
       z: (rng() * 2 - 1) * 2200,
-      r: 70 + rng() * 110,
+      r: 80 + rng() * 130,
       drift: 1.5 + rng() * 2,
     });
   }

@@ -113,7 +113,7 @@ function projectClamped(cam, x, y, z) {
 }
 
 const SKIES = {
-  golden: { top: '#274b7d', mid: '#d97e4a', low: '#f8cd7d', sun: '#fff0b8', seaTop: '#e8965a', seaBot: '#1d4e6e', cloud: 'rgba(255,242,221,0.92)' },
+  golden: { top: '#16365f', mid: '#c96a3e', low: '#ffc46b', sun: '#fff0b8', seaTop: '#e8965a', seaBot: '#1d4e6e', cloud: 'rgba(255,242,221,0.92)' },
   storm: { top: '#070b1c', mid: '#141a33', low: '#2c3350', sun: '#cdd6f4', seaTop: '#232a45', seaBot: '#0a1226', cloud: 'rgba(74,79,102,0.95)' },
 };
 
@@ -121,8 +121,9 @@ export function drawSkySea(ctx, cam, sky, w, h, time) {
   const pal = SKIES[sky];
   const g = ctx.createLinearGradient(0, 0, 0, h);
   g.addColorStop(0, pal.top);
+  g.addColorStop(0.30, sky === 'storm' ? pal.mid : '#3d6a9e');
   g.addColorStop(0.45, pal.mid);
-  g.addColorStop(0.62, pal.low);
+  g.addColorStop(0.58, pal.low);
   g.addColorStop(0.621, pal.seaTop);
   g.addColorStop(1, pal.seaBot);
   ctx.fillStyle = g;
@@ -131,37 +132,42 @@ export function drawSkySea(ctx, cam, sky, w, h, time) {
   // Low sun (golden) or pale moon (storm) fixed to the west.
   const sunP = project(cam, cam.pos.x - 6000, 260, cam.pos.z - 1200);
   if (sunP) {
-    const r = sky === 'storm' ? 26 : 44;
-    const glow = ctx.createRadialGradient(sunP.sx, sunP.sy, 2, sunP.sx, sunP.sy, r * 4);
-    glow.addColorStop(0, sky === 'storm' ? 'rgba(205,214,244,0.5)' : 'rgba(255,240,184,0.85)');
+    const r = sky === 'storm' ? 26 : 56;
+    const glow = ctx.createRadialGradient(sunP.sx, sunP.sy, 2, sunP.sx, sunP.sy, r * 5);
+    glow.addColorStop(0, sky === 'storm' ? 'rgba(205,214,244,0.5)' : 'rgba(255,240,184,0.9)');
+    glow.addColorStop(0.4, 'rgba(255,190,110,0.35)');
     glow.addColorStop(1, 'rgba(255,240,184,0)');
     ctx.fillStyle = glow;
-    ctx.beginPath(); ctx.arc(sunP.sx, sunP.sy, r * 4, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(sunP.sx, sunP.sy, r * 5, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = pal.sun;
     ctx.beginPath(); ctx.arc(sunP.sx, sunP.sy, r, 0, Math.PI * 2); ctx.fill();
   }
 
-  // Sea shimmer: a few horizontal light streaks toward the sun.
+  // Sea shimmer: horizontal light streaks toward the sun, wider and
+  // brighter near the horizon so the water reads as sunlit, not flat.
   ctx.save();
-  ctx.globalAlpha = 0.10;
+  ctx.globalAlpha = 0.14;
   ctx.fillStyle = '#ffd9a0';
-  for (let i = 0; i < 5; i++) {
-    const yy = h * (0.68 + i * 0.06);
-    const ww = w * (0.5 - i * 0.07);
+  for (let i = 0; i < 8; i++) {
+    const yy = h * (0.66 + i * 0.045);
+    const ww = w * (0.62 - i * 0.06);
     ctx.fillRect((w - ww) / 2, yy, ww, 2);
   }
   ctx.restore();
 }
 
 // --- Terrain colour by height, with simple slope shading -------------------
+// Patches of dry grass and jungle break the flat green so the islands
+// read as varied land, not a single colour; steep slopes are bare rock.
 function terrainColor(h, slope, sky, vary) {
   let base;
   if (h < 1.2) base = [216, 192, 138];       // sand
-  else if (h < 24) base = [127, 174, 90];    // low grass
-  else if (h < 62) base = [79, 143, 74];     // deep green
+  else if (h < 24) base = vary > 0.72 ? [188, 170, 95] : [127, 174, 90]; // dry grass patches / low grass
+  else if (h < 62) base = vary < 0.28 ? [58, 118, 58] : [79, 143, 74];    // jungle patches / deep green
   else if (h < 120) base = [138, 127, 116]; // rock
   else base = [232, 232, 232];               // snow (only the highest peaks)
-  const shade = (0.82 + Math.min(0.28, slope * 0.9)) * (0.9 + vary * 0.2);
+  if (slope > 30 && h >= 24) base = [132, 120, 108]; // cliffs
+  const shade = (0.78 + Math.min(0.34, slope * 1.1)) * (0.82 + vary * 0.36);
   const night = sky === 'storm' ? 0.34 : 1;
   const r = Math.round(base[0] * shade * night);
   const g = Math.round(base[1] * shade * night);
@@ -302,8 +308,8 @@ function drawRing(ctx, cam, ring, isNext, time, sky) {
   ctx.save();
   ctx.lineJoin = 'round';
   ctx.strokeStyle = isNext ? `rgba(255,176,32,${pulse})` : 'rgba(255,176,32,0.35)';
-  ctx.lineWidth = width * 2.6;
-  ctx.globalAlpha = 0.35;
+  ctx.lineWidth = width * 3.2;
+  ctx.globalAlpha = 0.5;
   ctx.beginPath();
   ctx.moveTo(pts[0].sx, pts[0].sy);
   for (let k = 1; k < pts.length; k++) ctx.lineTo(pts[k].sx, pts[k].sy);
@@ -312,14 +318,9 @@ function drawRing(ctx, cam, ring, isNext, time, sky) {
   ctx.lineWidth = width;
   ctx.stroke();
   ctx.restore();
-  // Distance tag above the next ring.
-  if (isNext && centre && centre.zc < 1500) {
-    const ringPx = (ring.r / centre.zc) * cam.focal;
-    ctx.fillStyle = '#ffb020';
-    ctx.font = `bold ${Math.max(12, Math.min(22, 9000 / centre.zc))}px sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.fillText(`${Math.round(centre.zc)} m`, centre.sx, centre.sy - ringPx - 10);
-  }
+  // No distance tag here: the HUD's ring marker already carries the
+  // "RING n/8 — NNN m" label, and a second number above the ring only
+  // confused the read.
 }
 
 export function drawRings(ctx, cam, rings, nextIndex, time, sky) {
@@ -386,6 +387,23 @@ const PLANE_POLYS = (() => {
   polys.push({ pts: [[0, 0.4, -2.5], [0, 1.7, -3.2], [0, 1.7, -3.5], [0, 0.4, -3.4]], color: tealDark });
   // Canopy.
   polys.push({ pts: [[-0.42, 0.55, 2.0], [0.42, 0.55, 2.0], [0.42, 0.62, 0.6], [-0.42, 0.62, 0.6]], color: '#9fc4d4' });
+  // Cabin windows: three small dark panes on each side of the fuselage.
+  const win = '#20262e';
+  for (const s of [-1, 1]) {
+    for (const zc of [1.7, 1.05, 0.4]) {
+      polys.push({ pts: [[s * 0.60, 0.12, zc + 0.22], [s * 0.60, 0.12, zc - 0.22], [s * 0.60, 0.42, zc - 0.22], [s * 0.60, 0.42, zc + 0.22]], color: win });
+    }
+  }
+  // Tail stripe: amber band across the rear fuselage.
+  polys.push({ pts: [[0.5, 0.30, -2.4], [0.5, 0.30, -2.9], [0.42, -0.28, -2.9], [0.42, -0.28, -2.4]], color: amber });
+  polys.push({ pts: [[-0.5, 0.30, -2.4], [-0.42, -0.28, -2.4], [-0.42, -0.28, -2.9], [-0.5, 0.30, -2.9]], color: amber });
+  // Spinner cone at the nose (octagon facing forward, amber).
+  const spin = [];
+  for (let k = 0; k < 8; k++) {
+    const a = (k / 8) * Math.PI * 2;
+    spin.push([Math.cos(a) * 0.22, Math.sin(a) * 0.22, 4.02]);
+  }
+  polys.push({ pts: spin, color: amber });
   // Fixed gear legs + wheels.
   polys.push({ pts: [[-0.5, -0.5, 1.4], [-0.5, -1.15, 1.4], [-0.42, -1.15, 1.4], [-0.42, -0.5, 1.4]], color: dark });
   polys.push({ pts: [[0.5, -0.5, 1.4], [0.42, -0.5, 1.4], [0.42, -1.15, 1.4], [0.5, -1.15, 1.4]], color: dark });
@@ -455,6 +473,22 @@ export function drawPlane(ctx, cam, plane, time) {
     ctx.lineTo(propC.sx + Math.cos(a + 1.57) * pr, propC.sy + Math.sin(a + 1.57) * pr);
     ctx.stroke();
     ctx.restore();
+  }
+  // Wingtip navigation lights: red port (left), green starboard (right).
+  for (const [lx, color] of [[-5.2, '#ff4d4d'], [5.2, '#4dff88']]) {
+    const wx = plane.x + right.x * lx + up.x * 0.28 + fwd.x * 0.1;
+    const wy = plane.y + right.y * lx + up.y * 0.28 + fwd.y * 0.1;
+    const wz = plane.z + right.z * lx + up.z * 0.28 + fwd.z * 0.1;
+    const lp = project(cam, wx, wy, wz);
+    if (!lp) continue;
+    const lr = Math.max(2, (0.14 / lp.zc) * cam.focal);
+    const glow = ctx.createRadialGradient(lp.sx, lp.sy, 0.5, lp.sx, lp.sy, lr * 4);
+    glow.addColorStop(0, color);
+    glow.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath(); ctx.arc(lp.sx, lp.sy, lr * 4, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = color;
+    ctx.beginPath(); ctx.arc(lp.sx, lp.sy, lr, 0, Math.PI * 2); ctx.fill();
   }
 }
 

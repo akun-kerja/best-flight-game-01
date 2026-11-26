@@ -4,18 +4,20 @@
 
 import { project } from './render.js';
 
-// Next-ring guide: a diamond on the ring when it is on screen, an edge
-// arrow pointing at it when it is not — so the pilot can line up a
+// Next-ring guide: a big diamond on the ring when it is on screen, an
+// edge arrow pointing at it when it is not — so the pilot can line up a
 // straight approach from far away instead of chasing it in circles.
+// The label names the ring and its distance: the two facts a pilot needs
+// to decide whether to turn now or hold the line.
 function drawRingMarker(ctx, state, cam) {
   const ring = state.mission.mission.rings[state.mission.ringIndex];
   if (!ring || state.mission.done || !cam) return;
   const { w, h, plane } = state;
   const p = project(cam, ring.x, ring.y, ring.z);
-  let x, y, onScreen = false;
+  let x, y, onScreen = false, dirX = 0, dirY = -1;
   if (p) {
     x = p.sx; y = p.sy;
-    if (x > 60 && x < w - 60 && y > 60 && y < h - 60) onScreen = true;
+    if (x > 80 && x < w - 80 && y > 80 && y < h - 80) onScreen = true;
   }
   if (!onScreen) {
     if (!p) {
@@ -23,29 +25,44 @@ function drawRingMarker(ctx, state, cam) {
       const dx = ring.x - cam.pos.x, dy = ring.y - cam.pos.y, dz = ring.z - cam.pos.z;
       const xc = dx * cam.right.x + dy * cam.right.y + dz * cam.right.z;
       const yc = dx * cam.up.x + dy * cam.up.y + dz * cam.up.z;
-      x = w / 2 - Math.sign(xc || 1) * (w / 2 - 70);
-      y = h / 2 - Math.sign(yc || 1) * (h / 2 - 70);
+      x = w / 2 - Math.sign(xc || 1) * (w / 2 - 90);
+      y = h / 2 - Math.sign(yc || 1) * (h / 2 - 90);
+      dirX = -Math.sign(xc || 1); dirY = -Math.sign(yc || 1);
     } else {
-      // Clamp the projected point to the screen edge.
+      // Clamp the projected point to the screen edge, keeping the
+      // direction from the centre so the arrow points the right way.
       const cx = w / 2, cy = h / 2;
       const dx = p.sx - cx, dy = p.sy - cy;
-      const s = Math.min((w / 2 - 70) / Math.abs(dx || 1), (h / 2 - 70) / Math.abs(dy || 1));
+      const len = Math.hypot(dx, dy) || 1;
+      dirX = dx / len; dirY = dy / len;
+      const s = Math.min((w / 2 - 90) / Math.abs(dx || 1), (h / 2 - 90) / Math.abs(dy || 1));
       x = cx + dx * Math.min(1, s);
       y = cy + dy * Math.min(1, s);
     }
   }
   const dist = Math.round(Math.hypot(ring.x - plane.x, ring.y - plane.y, ring.z - plane.z));
+  const label = `RING ${state.mission.ringsHit + 1}/${state.mission.mission.rings.length} — ${dist} m`;
   ctx.save();
   ctx.strokeStyle = '#ffb020';
   ctx.fillStyle = '#ffb020';
   ctx.lineWidth = 3;
-  const r = onScreen ? 12 : 16;
+  const r = onScreen ? 16 : 20;
   ctx.beginPath();
   ctx.moveTo(x, y - r); ctx.lineTo(x + r, y); ctx.lineTo(x, y + r); ctx.lineTo(x - r, y);
   ctx.closePath(); ctx.stroke();
-  ctx.font = 'bold 15px sans-serif';
+  if (!onScreen) {
+    // Arrowhead at the diamond's outer edge, pointing toward the ring.
+    const ax = x + dirX * (r + 14), ay = y + dirY * (r + 14);
+    const px = -dirY, py = dirX;
+    ctx.beginPath();
+    ctx.moveTo(ax + dirX * 14, ay + dirY * 14);
+    ctx.lineTo(ax - dirX * 8 + px * 10, ay - dirY * 8 + py * 10);
+    ctx.lineTo(ax - dirX * 8 - px * 10, ay - dirY * 8 - py * 10);
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.font = 'bold 16px sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText(`${dist} m`, x, y + r + 18);
+  ctx.fillText(label, x, y + r + 22);
   ctx.restore();
 }
 
@@ -209,7 +226,9 @@ function drawBar(ctx, x, y, w, h, frac, color, label) {
   ctx.fillRect(x, y, w, h);
   ctx.fillStyle = color;
   ctx.fillRect(x, y, w * Math.max(0, Math.min(1, frac)), h);
-  ctx.fillStyle = '#0e1116';
+  // Light label: it must read on the dark track too (a nearly empty bar
+  // left a dark-on-dark label).
+  ctx.fillStyle = '#f2e6c9';
   ctx.font = 'bold 11px sans-serif';
   ctx.textAlign = 'left';
   ctx.fillText(label, x + 5, y + h - 3);

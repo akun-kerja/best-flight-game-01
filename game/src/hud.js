@@ -4,6 +4,45 @@
 
 import { project } from './render.js';
 
+// Flight plan: the sortie's route in three lines plus the tower's word —
+// the simulator density the winning entries show (checklist + radio
+// line), so the HUD reads as a flight, not a bare speedometer.
+function drawFlightPlan(ctx, state) {
+  const { plane, mission } = state;
+  const ring = mission.mission.rings[mission.ringIndex];
+  const total = mission.mission.rings.length;
+  const lines = ['FLIGHT PLAN'];
+  lines.push('01  DEPART RWY 27');
+  if (ring && !mission.done) {
+    const dist = Math.round(Math.hypot(ring.x - plane.x, ring.y - plane.y, ring.z - plane.z));
+    lines.push(`02  RING ${mission.ringsHit + 1}/${total} — ${dist} M`);
+  } else {
+    lines.push('02  ALL RINGS CLEAR');
+  }
+  if (mission.mission.key === 'courier') lines.push('03  DELIVER CARGO — PULAU API');
+  else if (mission.mission.key === 'storm') lines.push('03  LAND RWY 27 — IN RAIN');
+  else lines.push('03  LAND RWY 27');
+  const radio = mission.mission.key === 'courier' ? 'DISPATCH: CARGO AT PULAU API'
+    : mission.mission.key === 'storm' ? 'TOWER: FLY SAFE IN THE STORM'
+    : 'TOWER: CLEARED FOR RINGS';
+  lines.push(radio);
+  drawPanel(ctx, 14, 132, 218, 108, 'rgba(8,12,20,0.62)');
+  ctx.textAlign = 'left';
+  lines.forEach((line, i) => {
+    if (i === 0) {
+      ctx.fillStyle = '#ffb020';
+      ctx.font = 'bold 13px sans-serif';
+    } else if (i === lines.length - 1) {
+      ctx.fillStyle = '#9fc4d4';
+      ctx.font = '12px sans-serif';
+    } else {
+      ctx.fillStyle = '#dfe6ef';
+      ctx.font = '13px sans-serif';
+    }
+    ctx.fillText(line, 28, 154 + i * 18);
+  });
+}
+
 // Next-ring guide: a big diamond on the ring when it is on screen, an
 // edge arrow pointing at it when it is not — so the pilot can line up a
 // straight approach from far away instead of chasing it in circles.
@@ -62,7 +101,14 @@ function drawRingMarker(ctx, state, cam) {
   }
   ctx.font = 'bold 16px sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText(label, x, y + r + 22);
+  // Dark backing pill: amber text on the amber ring was unreadable.
+  const tw = ctx.measureText(label).width;
+  ctx.fillStyle = 'rgba(8,12,20,0.72)';
+  ctx.beginPath();
+  ctx.roundRect(x - tw / 2 - 10, y + r + 8, tw + 20, 22, 6);
+  ctx.fill();
+  ctx.fillStyle = '#ffb020';
+  ctx.fillText(label, x, y + r + 24);
   ctx.restore();
 }
 
@@ -94,6 +140,9 @@ export function drawHud(ctx, state, cam) {
   ctx.fillStyle = '#9fc4d4';
   ctx.font = '15px sans-serif';
   ctx.fillText(`VSI ${vsiFpm >= 0 ? '+' : ''}${vsiFpm} fpm`, 28, 112);
+
+  // --- Left edge, under the flight data: flight plan -------------------------
+  drawFlightPlan(ctx, state);
 
   // --- Top-centre: compass strip with heading ---------------------------------
   const cx = w / 2, cy = 30, cw = Math.min(420, w * 0.36);
@@ -186,29 +235,30 @@ export function drawHud(ctx, state, cam) {
     warns.forEach((msg, i) => ctx.fillText(msg, w / 2, h * 0.30 + i * 24));
   }
 
-  // --- Sortie-complete panel (upper third, so the plane stays visible) -----------
+  // --- Sortie-complete panel: small and high, so the runway and the
+  // plane stay visible behind it (a big panel hid the landing itself). ---
   if (mission.done) {
-    const pw = 460, ph = 200;
-    const py = h * 0.30 - ph / 2;
+    const pw = 400, ph = 150;
+    const py = h * 0.20 - ph / 2;
     drawPanel(ctx, w / 2 - pw / 2, py, pw, ph, 'rgba(8,12,20,0.85)');
     ctx.textAlign = 'center';
     ctx.fillStyle = mission.result === 'complete' ? '#7be07b' : '#ff5a4e';
-    ctx.font = 'bold 30px sans-serif';
+    ctx.font = 'bold 26px sans-serif';
     const title = mission.result === 'complete' ? 'SORTIE COMPLETE'
       : mission.result === 'crashed' ? 'CRASHED' : 'SORTIE OVER';
-    ctx.fillText(title, w / 2, py + 44);
+    ctx.fillText(title, w / 2, py + 36);
     ctx.fillStyle = '#ffb020';
-    ctx.font = 'bold 17px sans-serif';
-    ctx.fillText(mission.message, w / 2, py + 72);
+    ctx.font = 'bold 16px sans-serif';
+    ctx.fillText(mission.message, w / 2, py + 60);
     ctx.fillStyle = '#f2e6c9';
-    ctx.font = 'bold 24px sans-serif';
-    ctx.fillText(`SCORE  ${mission.score}`, w / 2, py + 104);
+    ctx.font = 'bold 22px sans-serif';
+    ctx.fillText(`SCORE  ${mission.score}`, w / 2, py + 88);
     ctx.fillStyle = '#9fc4d4';
-    ctx.font = '15px sans-serif';
-    ctx.fillText(`Rings ${mission.ringsHit}/${mission.mission.rings.length}   •   Hull ${Math.round(plane.hull)}%   •   Fuel ${Math.round(plane.fuel)}%`, w / 2, py + 130);
+    ctx.font = '14px sans-serif';
+    ctx.fillText(`Rings ${mission.ringsHit}/${mission.mission.rings.length}   •   Hull ${Math.round(plane.hull)}%   •   Fuel ${Math.round(plane.fuel)}%`, w / 2, py + 112);
     ctx.fillStyle = '#dfe6ef';
-    ctx.font = '15px sans-serif';
-    ctx.fillText('Press R to fly again  •  1 / 2 / 3 for another mission', w / 2, py + 158);
+    ctx.font = '14px sans-serif';
+    ctx.fillText('Press R to fly again  •  1 / 2 / 3 for another mission', w / 2, py + 136);
   }
 
   ctx.restore();
@@ -227,10 +277,14 @@ function drawBar(ctx, x, y, w, h, frac, color, label) {
   ctx.fillStyle = color;
   ctx.fillRect(x, y, w * Math.max(0, Math.min(1, frac)), h);
   // Light label: it must read on the dark track too (a nearly empty bar
-  // left a dark-on-dark label).
-  ctx.fillStyle = '#f2e6c9';
+  // left a dark-on-dark label). A dark outline keeps it readable where
+  // the label crosses the coloured fill as well.
   ctx.font = 'bold 11px sans-serif';
   ctx.textAlign = 'left';
+  ctx.strokeStyle = 'rgba(8,12,20,0.85)';
+  ctx.lineWidth = 3;
+  ctx.strokeText(label, x + 5, y + h - 3);
+  ctx.fillStyle = '#f2e6c9';
   ctx.fillText(label, x + 5, y + h - 3);
 }
 

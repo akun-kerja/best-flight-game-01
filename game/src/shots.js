@@ -21,11 +21,11 @@ function aimAt(x, z, tx, tz) {
 
 const POSES = {
   cover(state) {
-    // Ring 6 of the Ring Run, approached from the sea south-east: the
-    // golden-hour sea in the foreground, the island and runway 27 ahead,
-    // the big amber ring on the approach line.
+    // Ring 6 of the Ring Run, approached close from the sea south-east:
+    // the ring looms large, the island and runway 27 ahead through it,
+    // the golden-hour sea in the foreground.
     const p = state.plane, m = state.mission;
-    p.x = 500; p.y = 170; p.z = 1000;
+    p.x = 430; p.y = 160; p.z = 880;
     p.heading = aimAt(p.x, p.z, 300, 700);
     p.pitch = -0.06; p.roll = 0.12;
     p.speed = 76; p.throttle = 0.72;
@@ -47,9 +47,10 @@ const POSES = {
     state.cameraMode = 'cockpit';
   },
   storm(state) {
-    // Storm Run at night: ring 2 ahead, rain, lightning frozen mid-flash.
+    // Storm Run at night: ring 2 close ahead, rain, lightning frozen
+    // mid-flash — the ring looms instead of sitting small in the dark.
     const p = state.plane, m = state.mission;
-    p.x = 300; p.y = 140; p.z = -300;
+    p.x = 450; p.y = 135; p.z = -550;
     p.heading = aimAt(p.x, p.z, 600, -800);
     p.pitch = -0.04; p.roll = 0.22;
     p.speed = 72; p.throttle = 0.68;

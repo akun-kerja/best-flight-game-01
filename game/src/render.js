@@ -114,7 +114,7 @@ function projectClamped(cam, x, y, z) {
 
 const SKIES = {
   golden: { top: '#16365f', mid: '#c96a3e', low: '#ffc46b', sun: '#fff0b8', seaTop: '#e8965a', seaBot: '#1d4e6e', cloud: 'rgba(255,242,221,0.92)' },
-  storm: { top: '#070b1c', mid: '#141a33', low: '#2c3350', sun: '#cdd6f4', seaTop: '#232a45', seaBot: '#0a1226', cloud: 'rgba(74,79,102,0.95)' },
+  storm: { top: '#0d1329', mid: '#20264a', low: '#41496e', sun: '#cdd6f4', seaTop: '#333d63', seaBot: '#131e38', cloud: 'rgba(74,79,102,0.95)' },
 };
 
 export function drawSkySea(ctx, cam, sky, w, h, time) {
@@ -168,7 +168,7 @@ function terrainColor(h, slope, sky, vary) {
   else base = [232, 232, 232];               // snow (only the highest peaks)
   if (slope > 30 && h >= 24) base = [132, 120, 108]; // cliffs
   const shade = (0.78 + Math.min(0.34, slope * 1.1)) * (0.82 + vary * 0.36);
-  const night = sky === 'storm' ? 0.34 : 1;
+  const night = sky === 'storm' ? 0.52 : 1;
   const r = Math.round(base[0] * shade * night);
   const g = Math.round(base[1] * shade * night);
   const b = Math.round(base[2] * shade * night);
@@ -509,10 +509,16 @@ export function drawCockpit(ctx, plane, w, h, time) {
 
   const cy = h - panelH * 0.42;
   const r = Math.min(52, panelH * 0.34);
+  // Five instruments, each with numerals on its dial face: a gauge that
+  // reads as flown, not drawn. HDG is a compass (0 at the top, needle
+  // pointing at the heading); the rest sweep 270 degrees like a clock.
+  const hdgDeg = ((plane.heading * 180 / Math.PI) % 360 + 360) % 360;
   const gauges = [
-    { x: w * 0.30, label: 'SPD', value: plane.speed, max: 130, unit: 'kt' },
-    { x: w * 0.50, label: 'ALT', value: plane.y * 3.28, max: 900, unit: 'ft' },
-    { x: w * 0.70, label: 'VSI', value: plane.verticalSpeed * 196, max: 1200, unit: 'fpm' },
+    { x: w * 0.28, label: 'SPD', value: plane.speed, max: 140, unit: 'kt', marks: ['0', '35', '70', '105', '140'] },
+    { x: w * 0.40, label: 'ALT', value: plane.y * 3.28, max: 900, unit: 'ft', marks: ['0', '225', '450', '675', '900'] },
+    { x: w * 0.52, label: 'VSI', value: plane.verticalSpeed * 196, max: 1200, unit: 'fpm', marks: ['-1200', '-600', '0', '600', '1200'] },
+    { x: w * 0.64, label: 'HDG', value: hdgDeg, max: 360, unit: '°', marks: ['N', 'E', 'S', 'W'], compass: true },
+    { x: w * 0.76, label: 'FUEL', value: plane.fuel, max: 100, unit: '%', marks: ['0', '25', '50', '75', '100'] },
   ];
   for (const gd of gauges) {
     ctx.save();
@@ -521,19 +527,37 @@ export function drawCockpit(ctx, plane, w, h, time) {
     ctx.strokeStyle = '#5a6270';
     ctx.lineWidth = 3;
     ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    // Ticks.
+    // Ticks: a full ring for the compass, a 270-degree sweep for the rest.
+    const tickCount = gd.compass ? 12 : 8;
+    const tickStart = gd.compass ? -Math.PI / 2 : Math.PI * 0.75;
+    const tickSweep = gd.compass ? Math.PI * 2 : Math.PI * 1.5;
     ctx.strokeStyle = '#8a93a3';
     ctx.lineWidth = 2;
-    for (let k = 0; k <= 8; k++) {
-      const a = Math.PI * 0.75 + (k / 8) * Math.PI * 1.5;
+    for (let k = 0; k <= tickCount; k++) {
+      const a = tickStart + (k / tickCount) * tickSweep;
       ctx.beginPath();
       ctx.moveTo(Math.cos(a) * (r - 8), Math.sin(a) * (r - 8));
       ctx.lineTo(Math.cos(a) * (r - 2), Math.sin(a) * (r - 2));
       ctx.stroke();
     }
-    // Needle.
+    // Numerals on the dial face.
+    ctx.fillStyle = '#c7d0dc';
+    ctx.font = 'bold 10px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    gd.marks.forEach((mk, mi) => {
+      const a = gd.compass
+        ? -Math.PI / 2 + (mi / 4) * Math.PI * 2
+        : Math.PI * 0.75 + (mi / 4) * Math.PI * 1.5;
+      ctx.fillText(mk, Math.cos(a) * (r - 20), Math.sin(a) * (r - 20));
+    });
+    ctx.textBaseline = 'alphabetic';
+    // Needle: compass needle points at the heading; the rest sweep with
+    // the value (0 at the bottom of the dial, max at upper right).
     const frac = Math.max(-1, Math.min(1, gd.value / gd.max));
-    const na = Math.PI * 0.75 + ((frac + 1) / 2) * Math.PI * 1.5;
+    const na = gd.compass
+      ? -Math.PI / 2 + (gd.value / 360) * Math.PI * 2
+      : Math.PI * 0.75 + ((frac + 1) / 2) * Math.PI * 1.5;
     ctx.strokeStyle = '#ffb020';
     ctx.lineWidth = 3;
     ctx.beginPath();
